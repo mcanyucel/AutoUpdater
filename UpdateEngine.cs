@@ -21,7 +21,7 @@ namespace AutoUpdater
         /// <param name="updateUrl">The URL to which the check query is sent. </param>
         public UpdateEngine(string appName, string version, string updateUrl)
         {
-            m_AppName = appName;
+            m_AppName = SanitizeAppName(appName);
             m_CurrentVersion = version;
             m_UpdateUrl = updateUrl;
         }
@@ -119,6 +119,10 @@ namespace AutoUpdater
             {
                 m_ErrorLogSemaphore.Release();
             }
+        }
+        private static string SanitizeAppName(string appName)
+        {
+            return appName.Replace(" ", "-");
         }
         public void Dispose()
         {
