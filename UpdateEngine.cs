@@ -1,23 +1,24 @@
 using System;
 using System.IO;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace AutoUpdater
 {
     /// <summary>
-    /// The main class to use for checking for updates. 
+    /// The main class to use for checking for updates. See README file for server requirements.
     /// </summary>
     public sealed class UpdateEngine : IDisposable
     {
         #region Constructors
         /// <summary>
-        /// The main class to use for checking for updates. 
+        /// The main class to use for checking for updates.
         /// </summary>
         /// <param name="appName">The name of the application. It will be sent in the check query.</param>
         /// <param name="version">The current version of the application. It will be sent in the check query</param>
-        /// <param name="updateUrl">The URL to which the check query is sent. The response of the server should be a single string conforming to semantic versioning.</param>
+        /// <param name="updateUrl">The URL to which the check query is sent. </param>
         public UpdateEngine(string appName, string version, string updateUrl)
         {
             m_AppName = appName;
@@ -40,10 +41,14 @@ namespace AutoUpdater
                 var response = await m_HttpClient.GetAsync(updateUrl);
                 response.EnsureSuccessStatusCode();
 
-                var content = await response.Content.ReadAsStringAsync();
+                var contentString = await response.Content.ReadAsStringAsync();
+                m_UpdateResponse = JsonSerializer.Deserialize<UpdateResponse>(contentString);
 
-                if (!TryParseVersion(content, out var mostRecentVersion))
-                    throw new Exception($"Unable to parse version from response: {content}");
+                if (m_UpdateResponse == null)
+                    throw new Exception($"Unable to parse response: {contentString}");
+
+                if (!TryParseVersion(m_UpdateResponse.Version ?? string.Empty, out var mostRecentVersion))
+                    throw new Exception($"Unable to parse version from response: {m_UpdateResponse.Version}");
 
                 if (!TryParseVersion(m_CurrentVersion, out var currentVersion))
                     throw new Exception($"Unable to parse current version: {m_CurrentVersion}");
@@ -62,12 +67,17 @@ namespace AutoUpdater
         /// <returns>True if the update was downloaded successfully, false otherwise.</returns>
         public async Task<bool> DownloadAndRunUpdate()
         {
-            var updateUrl = $"{m_UpdateUrl}?appName={m_AppName}&version={m_CurrentVersion}";
+            if (m_UpdateResponse == null || string.IsNullOrEmpty(m_UpdateResponse.Url))
+            {
+                await WriteError("Update response is null or URL is null or empty");
+                return false;
+            }
+
             var tempPath = Path.GetTempFileName();
 
             try
             {
-                var response = await m_HttpClient.GetAsync(updateUrl);
+                var response = await m_HttpClient.GetAsync(m_UpdateResponse.Url);
                 response.EnsureSuccessStatusCode();
 
                 await using var fileStream = File.Create(tempPath);
@@ -100,9 +110,10 @@ namespace AutoUpdater
         private async Task WriteError(string message)
         {
             await m_ErrorLogSemaphore.WaitAsync();
+            var errorLogFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), $"{m_AppName} Updater", "error.log");
             try
             {
-                await File.AppendAllTextAsync("error.log", $"{DateTime.Now} - {message}\n");
+                await File.AppendAllTextAsync(errorLogFile, $"{DateTime.Now} - {message}\n");
             }
             finally
             {
@@ -121,6 +132,16 @@ namespace AutoUpdater
         private readonly string m_UpdateUrl;
         private readonly SemaphoreSlim m_ErrorLogSemaphore = new(1, 1);
         private static readonly HttpClient m_HttpClient = new();
+
+        private UpdateResponse? m_UpdateResponse;
+        #endregion
+
+        #region Internal Classes
+        private class UpdateResponse
+        {
+            public string? Version { get; set; }
+            public string? Url { get; set; }
+        }
         #endregion
     }
 }
