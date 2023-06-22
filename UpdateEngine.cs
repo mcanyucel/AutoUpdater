@@ -38,30 +38,11 @@ namespace AutoUpdater
         {
             try
             {
-
-
-                var test = new VersionData { Url = "https://example.com", Version = "1.0.0.0" };
-                var stringTest = JsonSerializer.Serialize(test);
-
-                File.WriteAllText("test.json", stringTest);
-
                 var updateUrl = $"{m_UpdateUrl}?name={m_AppName}";
-
                 var response = await m_HttpClient.GetAsync(updateUrl);
                 response.EnsureSuccessStatusCode();
-
-
-
-
-
                 var contentString = await response.Content.ReadAsStringAsync();
-                m_Data = JsonSerializer.Deserialize<VersionData>(contentString.Trim().Replace("\n",""));
-
-
-
-
-
-
+                m_Data = JsonSerializer.Deserialize<VersionData>(contentString);
                 if (m_Data == null)
                     throw new Exception($"Unable to parse response: {contentString}");
 
