@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
@@ -36,19 +38,35 @@ namespace AutoUpdater
         {
             try
             {
-                var updateUrl = $"{m_UpdateUrl}?appName={m_AppName}";
+
+
+                var test = new VersionData { Url = "https://example.com", Version = "1.0.0.0" };
+                var stringTest = JsonSerializer.Serialize(test);
+
+                File.WriteAllText("test.json", stringTest);
+
+                var updateUrl = $"{m_UpdateUrl}?name={m_AppName}";
 
                 var response = await m_HttpClient.GetAsync(updateUrl);
                 response.EnsureSuccessStatusCode();
 
-                var contentString = await response.Content.ReadAsStringAsync();
-                m_UpdateResponse = JsonSerializer.Deserialize<UpdateResponse>(contentString);
 
-                if (m_UpdateResponse == null)
+
+
+
+                var contentString = await response.Content.ReadAsStringAsync();
+                m_Data = JsonSerializer.Deserialize<VersionData>(contentString.Trim().Replace("\n",""));
+
+
+
+
+
+
+                if (m_Data == null)
                     throw new Exception($"Unable to parse response: {contentString}");
 
-                if (!TryParseVersion(m_UpdateResponse.Version ?? string.Empty, out var mostRecentVersion))
-                    throw new Exception($"Unable to parse version from response: {m_UpdateResponse.Version}");
+                if (!TryParseVersion(m_Data.Version ?? string.Empty, out var mostRecentVersion))
+                    throw new Exception($"Unable to parse version from response: {m_Data.Version}");
 
                 if (!TryParseVersion(m_CurrentVersion, out var currentVersion))
                     throw new Exception($"Unable to parse current version: {m_CurrentVersion}");
@@ -67,7 +85,7 @@ namespace AutoUpdater
         /// <returns>True if the update was downloaded successfully, false otherwise.</returns>
         public async Task<bool> DownloadAndRunUpdate()
         {
-            if (m_UpdateResponse == null || string.IsNullOrEmpty(m_UpdateResponse.Url))
+            if (m_Data == null)
             {
                 await WriteError("Update response is null or URL is null or empty");
                 return false;
@@ -77,12 +95,23 @@ namespace AutoUpdater
 
             try
             {
-                var response = await m_HttpClient.GetAsync(m_UpdateResponse.Url);
+                var response = await m_HttpClient.GetAsync(m_Data.Url);
                 response.EnsureSuccessStatusCode();
 
-                await using var fileStream = File.Create(tempPath);
+                using var fileStream = File.Create(tempPath);
                 await response.Content.CopyToAsync(fileStream);
-                System.Diagnostics.Process.Start(tempPath);
+                fileStream.Close();
+                fileStream.Dispose();
+                var updaterPath = Path.ChangeExtension(tempPath, ".msi");
+                File.Move(tempPath, updaterPath);
+                var installerProcess = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo(updaterPath)
+                    {
+                        UseShellExecute = true
+                    }
+                };
+                installerProcess.Start();
                 return true;
             }
             catch (Exception ex)
@@ -110,11 +139,13 @@ namespace AutoUpdater
         private async Task WriteError(string message)
         {
             await m_ErrorLogSemaphore.WaitAsync();
-            var errorLogFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), $"{m_AppName} Updater", "error.log");
+            var errorLogFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "autoupdater", "error.log");
             try
             {
-                await File.AppendAllTextAsync(errorLogFile, $"{DateTime.Now} - {message}\n");
+                Directory.CreateDirectory(Path.GetDirectoryName(errorLogFile) ?? string.Empty);
+                await File.AppendAllTextAsync(errorLogFile, $"{m_AppName} - {DateTime.Now} - {message}\n");
             }
+            catch { }
             finally
             {
                 m_ErrorLogSemaphore.Release();
@@ -122,7 +153,7 @@ namespace AutoUpdater
         }
         private static string SanitizeAppName(string appName)
         {
-            return appName.Replace(" ", "-");
+            return appName.Replace(" ", "-").ToLower();
         }
         public void Dispose()
         {
@@ -137,15 +168,15 @@ namespace AutoUpdater
         private readonly SemaphoreSlim m_ErrorLogSemaphore = new(1, 1);
         private static readonly HttpClient m_HttpClient = new();
 
-        private UpdateResponse? m_UpdateResponse;
+        private VersionData? m_Data;
         #endregion
 
-        #region Internal Classes
-        private class UpdateResponse
-        {
-            public string? Version { get; set; }
-            public string? Url { get; set; }
-        }
-        #endregion
+
+    }
+
+    public sealed class VersionData
+    {
+        public string Version { get; set; }
+        public string Url { get; set; }
     }
 }
