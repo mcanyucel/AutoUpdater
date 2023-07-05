@@ -1,11 +1,10 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using AutoUpdater.ui;
 
 namespace AutoUpdater
 {
@@ -33,7 +32,7 @@ namespace AutoUpdater
         /// <summary>
         /// Checks if there is a newer version of the application available.
         /// </summary>
-        /// <returns>True if a newer version exists, false othervise. </returns>
+        /// <returns>True if a newer version exists, false otherwise. </returns>
         public async Task<bool> CheckForUpdateAsync()
         {
             try
@@ -72,6 +71,9 @@ namespace AutoUpdater
                 return false;
             }
 
+            m_IndeterminateProgressWindow ??= new IndeterminateProgress();
+            m_IndeterminateProgressWindow.ShowDialog();
+            var result = false;
             var tempPath = Path.GetTempFileName();
 
             try
@@ -93,13 +95,18 @@ namespace AutoUpdater
                     }
                 };
                 installerProcess.Start();
-                return true;
+                result = true;
             }
             catch (Exception ex)
             {
                 await WriteError(ex.ToString());
-                return false;
             }
+            finally
+            {
+                m_IndeterminateProgressWindow?.Close();
+                m_IndeterminateProgressWindow = null;
+            }
+            return result;
         }
         #endregion
 
@@ -148,7 +155,7 @@ namespace AutoUpdater
         private readonly string m_UpdateUrl;
         private readonly SemaphoreSlim m_ErrorLogSemaphore = new(1, 1);
         private static readonly HttpClient m_HttpClient = new();
-
+        private IndeterminateProgress? m_IndeterminateProgressWindow;
         private VersionData? m_Data;
         #endregion
 
@@ -157,7 +164,7 @@ namespace AutoUpdater
 
     public sealed class VersionData
     {
-        public string Version { get; set; }
-        public string Url { get; set; }
+        public string Version { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
     }
 }

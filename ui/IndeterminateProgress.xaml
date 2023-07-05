@@ -1,0 +1,14 @@
+﻿<Window x:Class="AutoUpdater.ui.IndeterminateProgress"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:AutoUpdater.ui"
+        mc:Ignorable="d"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        Title="IndefiniteProgress" Width="496" Height="10">
+    <DockPanel LastChildFill="True">
+        <ProgressBar DockPanel.Dock="Bottom" Height="10" IsIndeterminate="True" />
+    </DockPanel>
+</Window>
