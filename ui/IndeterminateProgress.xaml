@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
-        Title="IndefiniteProgress" Width="496" Height="10">
+        Width="496" Height="20">
     <DockPanel LastChildFill="True">
         <ProgressBar DockPanel.Dock="Bottom" Height="10" IsIndeterminate="True" />
     </DockPanel>

@@ -72,7 +72,7 @@ namespace AutoUpdater
             }
 
             m_IndeterminateProgressWindow ??= new IndeterminateProgress();
-            m_IndeterminateProgressWindow.ShowDialog();
+            m_IndeterminateProgressWindow.Show();
             var result = false;
             var tempPath = Path.GetTempFileName();
 
